@@ -38,7 +38,7 @@ fun freshname () : string =
 | prog of A.prog
 
 %right ARROW
-%nonassoc LETIN
+%left LETIN
 %left SEMICOLON
 %nonassoc IF THEN LOOP
 %nonassoc ELSE
@@ -52,7 +52,6 @@ fun freshname () : string =
 %left TIMES
 %left CALL
 %nonassoc PROJ REF BANG UMINUS
-%nonassoc LPAREN
 
 %start prog
 
