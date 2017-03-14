@@ -1,0 +1,12 @@
+Group is
+
+ $/basis.cm
+ $/smlnj-lib.cm
+
+(* This first batch of files is useful for LEXICAL ANALYZER *)
+errormsg.sml
+tokens.sig
+tokens.sml
+fun.lex
+runlex.sml
+
