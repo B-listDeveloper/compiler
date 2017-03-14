@@ -11,6 +11,10 @@ structure S = Symbol
 %term EOF
 | INT of int
 | ID of string
+| ARROW | FUN | IN | LET | ELSE | THEN | IF 
+| ASSIGN | BANG | REF | DO | WHILE | OR | NOT 
+| AND | GT | EQ | LT | PROJ | TIMES | MINUS 
+| PLUS | RPAREN | LPAREN | COLON | SEMICOLON | COMMA
 
 %nonterm tp of A.tp | tps of A.tp list 
 
