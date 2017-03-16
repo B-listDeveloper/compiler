@@ -20,9 +20,10 @@ structure S = Symbol
 
 
 %right ARROW
+%left PLUS
+%right TIMES
 
 %%
 
 exp: exp LPAREN exp RPAREN       (A.Pos((exp1left,RPARENright), A.Call (exp1,exp2)))
-
 
