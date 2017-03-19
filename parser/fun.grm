@@ -23,7 +23,6 @@ structure S = Symbol
 | fundec of A.fundec | fundecs of A.fundec list
 | prog of A.prog
 
-(* NEEDS TO BE MODIFIED *)
 %right ARROW
 %nonassoc LET IN
 %nonassoc SEMICOLON
