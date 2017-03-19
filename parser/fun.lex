@@ -72,8 +72,10 @@ digit = [0-9];
 <INITIAL>">"        => (Tokens.GT(make_pos(yypos, yytext)));
 <INITIAL>"="        => (Tokens.EQ(make_pos(yypos, yytext)));
 <INITIAL>"<"        => (Tokens.LT(make_pos(yypos, yytext)));
-<INITIAL>"#"{digit}+
+<INITIAL>"#"(0 | [1-9]{digit}*)
                     => (Tokens.PROJ(make_proj_args(yypos, yytext)));
+<INITIAL>"#"0{digit}+
+                    => (ErrorMsg.error(make_pos(yypos, yytext), "Invalid PROJ format"); continue());
 <INITIAL>"*"        => (Tokens.TIMES(make_pos(yypos, yytext)));
 <INITIAL>"-"        => (Tokens.MINUS(make_pos(yypos, yytext)));
 <INITIAL>"+"        => (Tokens.PLUS(make_pos(yypos, yytext)));
