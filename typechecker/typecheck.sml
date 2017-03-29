@@ -48,6 +48,23 @@ struct
 
 (* expression typing *)
  fun tc_exp ctxt pos e : A.tp =  raise UNIMPLEMENTED
+   case e of
+   (* 
+    * -----------------
+    * G |-- id : G (id) 
+    *)
+     A.ID id =>
+       (case Symbol.look (ctxt, id) of
+          SOME x => x
+        | NONE => ErrorMsg.error (pos, "Unknown ID"))
+   (* 
+    * ---------------
+    * G |-- num : int
+    *)
+   | A.Int i => A.Inttp
+   | A.Op (op, exps) => 
+       (case (op, map exp exps) of
+          (A.Ref, []) => )
 
  fun tc_fundec ctxt ((pos, (f, x, tp1, tp2, exp)): A.fundec) =
  let val ctxt' = Symbol.enter(ctxt,x,tp1)
@@ -55,7 +72,8 @@ struct
   in check_sub pos (tp, tp2)
  end 
 
- fun do_another_fun ((pos, fdec), ctxt) = raise UNIMPLEMENTED
+ fun do_another_fun ((pos, fdec as (f_id, _, _, f_tp, _)), ctxt) = 
+   Symbol.enter (ctxt, f_id, f_tp)
 
  fun build_global_context (fundecs) =
   foldl do_another_fun Symbol.empty fundecs
