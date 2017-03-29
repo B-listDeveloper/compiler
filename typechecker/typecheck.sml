@@ -28,16 +28,16 @@ struct
 (* subtyping *)
  fun sub (t1,t2) = 
    case (t1, t2) of
-     (A.Inttp tp1, A.Inttp tp2) => true
+     (A.Inttp, A.Inttp) => true
    | (A.Tupletp (tp1h :: tp1r), A.Tupletp (tp2h :: tp2r)) => 
-       if sub (tp1h, tp2h) then sub (tp1r, tp2r)
+       if sub (tp1h, tp2h) then sub (A.Tupletp tp1r, A.Tupletp tp2r)
        else false
    | (A.Tupletp [], A.Tupletp (tp2h :: tp2r)) => false
    | (A.Tupletp (tp1h :: tp1r), A.Tupletp []) => true
    | (A.Tupletp [], A.Tupletp []) => true
    | (A.Arrowtp (tp1, tp2), A.Arrowtp (tp1', tp2')) => sub (tp1', tp1) andalso sub (tp2, tp2')
    | (A.Reftp tp1, A.Reftp tp2) => sub (tp1, tp2) andalso sub (tp2, tp1)
-   | _ => false
+   | (_, _) => false
 
  fun check_sub pos (tp1, tp2) = 
    if sub (tp1, tp2) then ()
