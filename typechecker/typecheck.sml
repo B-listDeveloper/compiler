@@ -63,8 +63,24 @@ struct
     *)
    | A.Int i => A.Inttp
    | A.Op (op, exps) => 
-       (case (op, map exp exps) of
-          (A.Ref, []) => )
+       (case (op, map tc_exp exps) of
+          (A.Add, [A.Inttp, A.Inttp]) => A.Inttp
+        | (A.Sub, [A.Inttp, A.Inttp]) => A.Inttp
+        | (A.Mul, [A.Inttp, A.Inttp]) => A.Inttp
+        | (A.LT, [A.Inttp, A.Inttp]) => A.Inttp
+        | (A.Eq, [A.Inttp, A.Inttp]) => A.Inttp
+        | (A.Ref, [?]) => 
+        | (A.Get, [?]) => 
+        | (A.Set, [?]) => 
+        | (_, _) => ErrorMsg.error (pos, "Invalid op type"))
+   | A.If (e1, e2, e3) => 
+   | A.Tuple es => 
+   | A.Proj (i, e1) => 
+   | A.While (e1, e2) => 
+   | A.Call (f, args) => 
+   | A.Let (id, e1, e2) => 
+   | A.Constrain (e, tp) => 
+   | A.Pos (pos', e1) =>
 
  fun tc_fundec ctxt ((pos, (f, x, tp1, tp2, exp)): A.fundec) =
  let val ctxt' = Symbol.enter(ctxt,x,tp1)
