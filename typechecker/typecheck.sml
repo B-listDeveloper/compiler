@@ -44,14 +44,18 @@ struct
    if sub (tp1, tp2) then ()
    else ErrorMsg.error (pos, "make a better error message than this!")
 
+ fun meet complain (t1, t2) : A.tp = raise UNIMPLEMENTED
+
 (* subtype join *)
- fun join complain (t1,t2) : A.tp = raise UNIMPLEMENTED
-   case (t1, t2) of
+ fun join complain (t1,t2) : A.tp = 
+   if t1=t2 then t1 else (complain "t1 and t2 do not join"; t1)
+   
+ (*  case (t1, t2) of
      (A.Inttp, A.Inttp) => A.Inttp
    | (A.Tupletp tp1, A.Tupletp tp2) => 
    | (A.Arrowtp tp1, A.Arrowtp tp2) => 
    | (A.Reftp tp1, A.Arrowtp tp2) => 
-   | _ => (complain "t1 and t2 do not join"; )
+   | _ => (complain "t1 and t2 do not join"; ) *)
    
 (* expression typing *)
  fun tc_exp ctxt pos e : A.tp = 
@@ -59,7 +63,7 @@ struct
      A.Id id =>
        (case Symbol.look (ctxt, id) of
           SOME x => x (* G |-- id : G(id) *)
-        | NONE => (ErrorMsg.error (pos, "Unknown ID"); raise Type))
+        | NONE => (ErrorMsg.error (pos, "Unknown ID: " ^ Symbol.name id); raise Type))
    | A.Int i => A.Inttp (* G |-- num : int *)
    | A.Op (oper, exps) => 
        (case (oper, map (fn x => tc_exp ctxt pos x) exps) of
@@ -80,19 +84,24 @@ struct
           A.Inttp => 
             (case (tc_exp ctxt pos e2, tc_exp ctxt pos e3) of
                (A.Tupletp [], _) => A.Tupletp [] (* G |-- if exp1 then exp2 : <> *)
-             | (tp1, tp2) =>
-                  if sub (tp1, tp2) then tp2 (* G |-- if exp1 then exp2 else exp3 : tp *)
-                  else (ErrorMsg.error (pos, "exps types don't match"); raise Type))
+             | (tp1, tp2) => join (fn x => ErrorMsg.error (pos, x)) (tp1, tp2))
+                  (*if sub (tp1, tp2) then tp2 (* G |-- if exp1 then exp2 else exp3 : tp *)
+                  else (ErrorMsg.error (pos, "exps types don't match"); raise Type)) *)
         | _ => (ErrorMsg.error (pos, "Not int on if predicate"); raise Type))
    | A.Tuple es => A.Tupletp (map (fn x => tc_exp ctxt pos x) es) (* G |-- <exp0, ..., expn> : <tp0, ..., tpn> *)
    | A.Proj (i, e1) => 
-       (case e1 of
+       (case tc_exp ctxt pos e1 of
+          A.Tupletp tpl => 
+            if i <= length tpl then List.nth (tpl, i)
+            else (ErrorMsg.error (pos, "proj index is out of bound"); raise Type)
+        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))
+       (*(case e1 of
           A.Tuple t => 
             let val tpl = map (fn x => tc_exp ctxt pos x) t in
             if i <= length tpl then List.nth (tpl, i) (* G |-- #i exp : tpi *)
             else (ErrorMsg.error (pos, "proj index is out of bound"); raise Type)
             end
-        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))
+        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))*)
    | A.While (e1, e2) => 
        (case (tc_exp ctxt pos e1, tc_exp ctxt pos e2) of
           (A.Inttp, A.Tupletp []) => A.Tupletp [] (* G |-- while exp1 do exp2 : <> *)
@@ -119,11 +128,13 @@ struct
   in check_sub pos (tp, tp2)
  end 
 
- fun do_another_fun ((pos, fdec as (f_id, _, _, f_tp, _)), ctxt) = 
-   Symbol.enter (ctxt, f_id, f_tp)
+ fun do_another_fun ((pos, fdec as (f_id, _, a_tp, f_tp, _)), ctxt) = 
+   if Symbol.name (f_id) = "main" andalso (a_tp <> A.Inttp orelse f_tp <> A.Inttp)
+   then (ErrorMsg.error (pos, "the type of main function isn't int -> int"); raise Type)
+   else Symbol.enter (ctxt, f_id, A.Arrowtp (a_tp, f_tp))
 
  fun build_global_context (fundecs) =
-  foldl do_another_fun Symbol.empty fundecs
+   Symbol.enter (foldl do_another_fun Symbol.empty fundecs, Symbol.symbol "printint", A.Arrowtp (A.Inttp, A.Tupletp []))
 
  fun tc (fundecs : A.prog)  = 
   let val ctxt = build_global_context(fundecs) 
