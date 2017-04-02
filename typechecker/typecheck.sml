@@ -42,21 +42,49 @@ struct
 
  fun check_sub pos (tp1, tp2) = 
    if sub (tp1, tp2) then ()
-   else ErrorMsg.error (pos, "make a better error message than this!")
+   else ErrorMsg.error (pos, "result type doesn't match with the function type")
 
- fun meet complain (t1, t2) : A.tp = raise UNIMPLEMENTED
-
-(* subtype join *)
- fun join complain (t1,t2) : A.tp = 
-   if t1=t2 then t1 else (complain "t1 and t2 do not join"; t1)
-   
- (*  case (t1, t2) of
+ (* subtype join *)  
+ fun join complain (t1, t2) : A.tp =
+   case (t1, t2) of
      (A.Inttp, A.Inttp) => A.Inttp
-   | (A.Tupletp tp1, A.Tupletp tp2) => 
-   | (A.Arrowtp tp1, A.Arrowtp tp2) => 
-   | (A.Reftp tp1, A.Arrowtp tp2) => 
-   | _ => (complain "t1 and t2 do not join"; ) *)
-   
+   | (A.Tupletp tp1, A.Tupletp tp2) =>
+        let fun join_list complain (t1, t2) : A.tp list =
+          (case (t1, t2) of
+            (A.Tupletp (tp1h :: tp1r), A.Tupletp (tp2h :: tp2r)) => 
+               (join complain (tp1h, tp2h)) :: (join_list complain (A.Tupletp tp1r, A.Tupletp tp2r))
+          | (A.Tupletp [], A.Tupletp (tp2h :: tp2r)) => []
+          | (A.Tupletp (tp1h :: tp1r), A.Tupletp []) => []
+          | (A.Tupletp [], A.Tupletp []) => []
+          | _ => (complain "this one should never be reached"; raise Type)) in
+        A.Tupletp (join_list complain (A.Tupletp tp1, A.Tupletp tp2))
+        end
+   | (A.Arrowtp (tp1, tp1'), A.Arrowtp (tp2, tp2')) => 
+        let fun meet complain (t1, t2) : A.tp = 
+          (case (t1, t2) of
+            (A.Inttp, A.Inttp) => A.Inttp
+          | (A.Tupletp tp1, A.Tupletp tp2) => 
+              let fun meet_list complain (t1, t2) : A.tp list =
+                (case (t1, t2) of
+                  (A.Tupletp (tp1h :: tp1r), A.Tupletp (tp2h :: tp2r)) => 
+                     (meet complain (tp1h, tp2h)) :: (meet_list complain (A.Tupletp tp1r, A.Tupletp tp2r))
+                | (A.Tupletp [], A.Tupletp (tp2h :: tp2r)) => 
+                     tp2h :: (meet_list complain (A.Tupletp [], A.Tupletp tp2r))
+                | (A.Tupletp (tp1h :: tp1r), A.Tupletp []) => 
+                     tp1h :: (meet_list complain (A.Tupletp [], A.Tupletp tp1r))
+                | (A.Tupletp [], A.Tupletp []) => []
+                | _ => (complain "this one should never be reached"; raise Type)) in
+              A.Tupletp (meet_list complain (A.Tupletp tp1, A.Tupletp tp2))
+              end
+          | (A.Arrowtp (tp1, tp1'), A.Arrowtp (tp2, tp2')) => 
+               A.Arrowtp (join complain (tp1, tp2), meet complain (tp1', tp2')) (* join and meet are switched because we compute meet in here *)
+          | (A.Reftp tp1, A.Reftp tp2) => A.Reftp (meet complain (tp1, tp2))
+          | _ => (complain "t1 and t2 do not meet"; raise Type)) in
+        A.Arrowtp (meet complain (tp1, tp2), join complain (tp1', tp2'))
+        end
+   | (A.Reftp tp1, A.Reftp tp2) => A.Reftp (join complain (tp1, tp2))
+   | _ => (complain "t1 and t2 do not join"; raise Type)
+
 (* expression typing *)
  fun tc_exp ctxt pos e : A.tp = 
    case e of
@@ -79,29 +107,20 @@ struct
              if sub (tp1, tp2) then A.Tupletp [] (* G |-- exp1 := exp2 : <> *)
              else (ErrorMsg.error (pos, "assign a wrong type to ref"); raise Type)
         | (_, _) => (ErrorMsg.error (pos, "Invalid op type"); raise Type))
-   | A.If (e1, e2, e3) => (* FIXME: then 과 else의 least common supertype을 return해야 (join 필요) *)
+   | A.If (e1, e2, e3) => 
        (case tc_exp ctxt pos e1 of
           A.Inttp => 
             (case (tc_exp ctxt pos e2, tc_exp ctxt pos e3) of
                (A.Tupletp [], _) => A.Tupletp [] (* G |-- if exp1 then exp2 : <> *)
-             | (tp1, tp2) => join (fn x => ErrorMsg.error (pos, x)) (tp1, tp2))
-                  (*if sub (tp1, tp2) then tp2 (* G |-- if exp1 then exp2 else exp3 : tp *)
-                  else (ErrorMsg.error (pos, "exps types don't match"); raise Type)) *)
+             | (tp2, tp3) => join (fn x => ErrorMsg.error (pos, x)) (tp2, tp3))
         | _ => (ErrorMsg.error (pos, "Not int on if predicate"); raise Type))
    | A.Tuple es => A.Tupletp (map (fn x => tc_exp ctxt pos x) es) (* G |-- <exp0, ..., expn> : <tp0, ..., tpn> *)
    | A.Proj (i, e1) => 
        (case tc_exp ctxt pos e1 of
           A.Tupletp tpl => 
-            if i <= length tpl then List.nth (tpl, i)
-            else (ErrorMsg.error (pos, "proj index is out of bound"); raise Type)
-        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))
-       (*(case e1 of
-          A.Tuple t => 
-            let val tpl = map (fn x => tc_exp ctxt pos x) t in
             if i <= length tpl then List.nth (tpl, i) (* G |-- #i exp : tpi *)
             else (ErrorMsg.error (pos, "proj index is out of bound"); raise Type)
-            end
-        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))*)
+        | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))
    | A.While (e1, e2) => 
        (case (tc_exp ctxt pos e1, tc_exp ctxt pos e2) of
           (A.Inttp, A.Tupletp []) => A.Tupletp [] (* G |-- while exp1 do exp2 : <> *)
