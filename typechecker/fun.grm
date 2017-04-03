@@ -1,6 +1,12 @@
 structure A = Absyn
 structure S = Symbol
 
+exception InvalidType
+
+fun check_id id pos : A.tp =
+  if id = "int" then A.Inttp
+  else (ErrorMsg.error (pos, "argument type is not int"); raise InvalidType)
+
 %%
 
 %pos ErrorMsg.pos
@@ -63,7 +69,7 @@ fundecs:                                ([])
 (* Type Structure *)
 tp:
 (* int *)
-ID                                      (A.Inttp)
+ID                                      (check_id ID (IDleft, IDright))
 (* <tp, ..., tp> *)
 | LT tps GT                             (A.Tupletp(tps1))
 (* tp -> tp *)
