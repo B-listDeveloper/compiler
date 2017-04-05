@@ -156,9 +156,11 @@ struct
       | NONE => Symbol.enter (ctxt, f_id, A.Arrowtp (a_tp, f_tp)))
 
  fun build_global_context (fundecs) =
-   case Symbol.look (Symbol.enter (foldl do_another_fun Symbol.empty fundecs, Symbol.symbol "printint", A.Arrowtp (A.Inttp, A.Tupletp [])), "main") of
-     SOME x => x
+   let val ctxt = Symbol.enter (foldl do_another_fun Symbol.empty fundecs, Symbol.symbol "printint", A.Arrowtp (A.Inttp, A.Tupletp [])) in
+   case Symbol.look (ctxt, Symbol.symbol "main") of
+     SOME x => ctxt
    | NONE => (ErrorMsg.error ((0, 0), "main function is not declared"); raise Type)
+   end
 
  fun tc (fundecs : A.prog)  = 
   let val ctxt = build_global_context(fundecs) 
