@@ -118,7 +118,7 @@ struct
    | A.Proj (i, e1) => 
        (case tc_exp ctxt pos e1 of
           A.Tupletp tpl => 
-            if i <= length tpl then List.nth (tpl, i) (* G |-- #i exp : tpi *)
+            if i < length tpl then List.nth (tpl, i) (* G |-- #i exp : tpi *)
             else (ErrorMsg.error (pos, "proj index is out of bound"); raise Type)
         | _ => (ErrorMsg.error (pos, "exp has to be a tuple"); raise Type))
    | A.While (e1, e2) => 
@@ -128,7 +128,7 @@ struct
    | A.Call (f, args) => 
        (case (tc_exp ctxt pos f, tc_exp ctxt pos args) of
           (A.Arrowtp (tp1, tp2), tp3) => 
-             if sub (tp1, tp3) then tp2 
+             if sub (tp3, tp1) then tp2 
              else (ErrorMsg.error (pos, "argument type error"); raise Type)
         | _ => (ErrorMsg.error (pos, "exp is not a function type"); raise Type)) (* G |-- exp1 exp2 : tp2 *)
    | A.Let (id, e1, e2) => 
@@ -150,10 +150,15 @@ struct
  fun do_another_fun ((pos, fdec as (f_id, _, a_tp, f_tp, _)), ctxt) = 
    if Symbol.name (f_id) = "main" andalso (a_tp <> A.Inttp orelse f_tp <> A.Inttp)
    then (ErrorMsg.error (pos, "the type of main function isn't int -> int"); raise Type)
-   else Symbol.enter (ctxt, f_id, A.Arrowtp (a_tp, f_tp))
+   else 
+     (case Symbol.look (ctxt, f_id) of
+        SOME x => (ErrorMsg.error (pos, "a function with the same name is already declared"); raise Type)
+      | NONE => Symbol.enter (ctxt, f_id, A.Arrowtp (a_tp, f_tp)))
 
  fun build_global_context (fundecs) =
-   Symbol.enter (foldl do_another_fun Symbol.empty fundecs, Symbol.symbol "printint", A.Arrowtp (A.Inttp, A.Tupletp []))
+   case Symbol.look (Symbol.enter (foldl do_another_fun Symbol.empty fundecs, Symbol.symbol "printint", A.Arrowtp (A.Inttp, A.Tupletp [])), "main") of
+     SOME x => x
+   | NONE => (ErrorMsg.error ((0, 0), "main function is not declared"); raise Type)
 
  fun tc (fundecs : A.prog)  = 
   let val ctxt = build_global_context(fundecs) 
