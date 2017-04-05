@@ -82,8 +82,44 @@ structure Fibx =
        emit (M.Jr(M.reg("$ra"),M.reg "$v0" :: M.calleeSaved));
        finish_fun())
 
-    fun emit_fibiter_func() = ()
-    fun emit_fibrec_func() = ()
+    fun emit_fibiter_func() = 
+      (emit_label (M.thislab "_fibiter");
+      emit (M.Li (M.reg "$t0", M.immed 1));
+      emit (M.Li (M.reg "$t1", M.immed 1));
+      emit (M.Branchz (M.Eq, M.reg "$a0", M.thislab "_fibiter_end"));
+      emit_label (M.thislab "_fibiter_loop");
+      emit (M.Arithi (M.Addi, M.reg "$a0", M.reg "$a0", M.immed ~1));
+      emit (M.Move (M.reg "$t2", M.reg "$t0"));
+      emit (M.Move (M.reg "$t0", M.reg "$t1"));
+      emit (M.Arith3 (M.Add, M.reg "$t1", M.reg "$t1", M.reg "$t2"));
+      emit (M.Branch (M.Gt, M.reg "$a0", M.reg "$zero", M.thislab "_fibiter_loop"));
+      emit_label (M.thislab "_fibiter_end");
+      emit (M.Move (M.reg "$v0", M.reg "$t0"));
+      emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
+      finish_fun ())
+
+    fun emit_fibrec_func() = 
+      (emit_label (M.thislab "_fibrec");
+      emit (M.Arithi (M.Addi, M.reg "$sp", M.reg "$sp", M.immed ~12));
+      emit (M.Sw (M.reg "$ra", (M.immed ~8, M.reg "$sp")));
+      emit (M.Sw (M.reg "$s0", (M.immed ~4, M.reg "$sp")));
+      emit (M.Move (M.reg "$s0", M.reg "$a0"));
+      emit (M.Li (M.reg "$v0", M.immed 1));
+      emit (M.Branchu (M.Leu, M.reg "$s0", M.reg "$v0", M.thislab "_fibrec_end"));
+      emit (M.Arithi (M.Addi, M.reg "$a0", M.reg "$s0", M.immed ~2));
+      emit (M.Jal (M.thislab "_fibrec"));
+      emit (M.Sw (M.reg "$v0", (M.immed 0, M.reg "$sp")));
+      emit (M.Arithi (M.Addi, M.reg "$a0", M.reg "$s0", M.immed ~1));
+      emit (M.Jal (M.thislab "_fibrec"));
+      emit (M.Move (M.reg "$t1", M.reg "$v0"));
+      emit (M.Lw (M.reg "$t0", (M.immed 0, M.reg "$sp")));
+      emit (M.Arith3 (M.Add, M.reg "$v0", M.reg "$t0", M.reg "$t1"));
+      emit_label (M.thislab "_fibrec_end");
+      emit (M.Lw (M.reg "$s0", (M.immed ~4, M.reg "$sp")));
+      emit (M.Lw (M.reg "$ra", (M.immed ~8, M.reg "$sp")));
+      emit (M.Arithi (M.Addi, M.reg "$sp", M.reg "$sp", M.immed 12));
+      emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
+      finish_fun ())
 
     fun emit_all() =
         (init_lists(); 
