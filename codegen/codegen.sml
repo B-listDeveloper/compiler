@@ -140,22 +140,20 @@ structure Codegen :> CODEGEN =
      *    output: M.reg -- if ret value is <>, we return r0
      *)
   fun gen_exp env : A.exp -> M.reg = 
-  let
-      fun gen (A.Id id) =       
-              (case Symbol.look (env, id) of
-                 SOME (Reg r) => r
-               | SOME (Lab lab) => 
-	               let val r = M.newReg()
-	                in emit (M.La(r, lab));
-	                   r
-	               end
-               | NONE => E.impossible ("Can't find " ^ Symbol.name id))
+    let fun gen (A.Id id) =       
+      (case Symbol.look (env, id) of
+         SOME (Reg r) => r
+       | SOME (Lab lab) => 
+	         let val r = M.newReg()
+	           in emit (M.La(r, lab));
+	           r
+	         end
+       | NONE => E.impossible ("Can't find " ^ Symbol.name id))
 
            (* IMPLEMENT ME! *)
 
-        | gen _ = E.impossible "unimplemented translation"
-
-     in gen
+    | gen _ = E.impossible "unimplemented translation"
+      in gen
     end
 
     (* gen_func: generates code for one function
@@ -163,12 +161,20 @@ structure Codegen :> CODEGEN =
      *            func: the function to be generated
      *)
     fun gen_func (fenv, (f,x,t1,t2,exp)) = 
-          (  (* IMPLEMENT ME! *)
-           emit_label (fun_label f);
-           gen_exp fenv (strip exp);
-           emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
-           finish_fun ()
-          )
+      (* IMPLEMENT ME! *)
+      let val fenv' = Symbol.enter (fenv, x, Reg (M.reg "$a0"))
+          val a0_tmp = M.newReg () 
+          val ra_tmp = M.newReg () in
+      emit_label (fun_label f);
+      emit (M.Move (ra_tmp, M.reg "$ra"));
+      emit (M.Move (a0_tmp, M reg "$a0"));
+      gen_exp fenv' (strip exp);
+      emit (M.Move (M.reg "$v0", M.reg "$t0"));
+      emit (M.Move (M.reg "$ra", ra_tmp));
+      emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
+      emit (M.Jr (M.reg "$ra", M.reg "$v0" :: calleeSaved))
+      finish_fun ()
+      end
 
     (* codegen: generates code for a program 
      *    input:  A.prog
