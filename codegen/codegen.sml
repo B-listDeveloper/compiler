@@ -123,9 +123,10 @@ structure Codegen :> CODEGEN =
       | fun2mips_arith_op _      = E.impossible "Arith op expected"
 
     (* Remove Pos and Constrain, to simplify pattern matching. *)
-    fun strip(A.Pos(_,e))     = strip e
+    (*fun strip(A.Pos(_,e))     = strip e
       | strip(A.Constrain(e,_)) = strip e
-      | strip(A.Op(oper,el))  = A.Op(oper, map strip el)
+      |*) 
+    fun strip(A.Op(oper,el))  = A.Op(oper, map strip el)
       | strip(A.Tuple(el))    = A.Tuple(map strip el)
       | strip(A.Proj(i,e))    = A.Proj(i,strip e)
       | strip(A.If(e1,e2,e3)) = A.If(strip e1, strip e2, strip e3)
@@ -151,11 +152,50 @@ structure Codegen :> CODEGEN =
        | NONE => E.impossible ("Can't find " ^ Symbol.name id))
 
            (* IMPLEMENT ME! *)
-
+    | gen (A.Int i) = 
+    | gen (A.Op (oper, exps)) = 
+        (case oper of
+          A.Add =>
+        | A.Sub =>)
+    | gen (A.Tuple tp) =
+        (case tp of
+          A.Inttp =>
+        | A.Tupletp tps =>
+        | A.Arrowtp (tp, tp') =>
+        | A.Reftp tp => )
+    | gen (A.Proj p) =
+    | gen (A.If f) =
+    | gen (A.Call c) =
+    | gen (A.Let l) =
+    | gen (A.Constrain r) =
+    | gen (A.Pos p)
     | gen _ = E.impossible "unimplemented translation"
-      in gen
+    in gen
     end
 
+    fun save_callee () =
+      let val regs = M.calleeSaved 
+          fun f l r = 
+            case r of 
+              [] => l
+            | x :: xs =>
+                let val tmp = M.newReg () in
+                emit (M.Move (tmp, M.reg ("$s" ^ Int.toString (length l))));
+                f (l @ [tmp]) xs
+                end in
+          f [] regs 
+      end
+
+    fun restore ra a0 callee =
+      let fun f l =
+        case l of
+          [] => ()
+        | x :: xs => 
+            (emit (M.Move (M.reg ("$s" ^ Int.toString (length xs)), x));
+            f xs) in
+      (f callee;
+      emit (M.Move (M.reg "$ra", ra)))
+      end
     (* gen_func: generates code for one function
      *    inputs: fenv: functions environment
      *            func: the function to be generated
@@ -163,16 +203,18 @@ structure Codegen :> CODEGEN =
     fun gen_func (fenv, (f,x,t1,t2,exp)) = 
       (* IMPLEMENT ME! *)
       let val fenv' = Symbol.enter (fenv, x, Reg (M.reg "$a0"))
+          val callee = save_callee ()
           val a0_tmp = M.newReg () 
           val ra_tmp = M.newReg () in
       emit_label (fun_label f);
       emit (M.Move (ra_tmp, M.reg "$ra"));
-      emit (M.Move (a0_tmp, M reg "$a0"));
+      emit (M.Move (a0_tmp, M.reg "$a0"));
+      save_callee ();
       gen_exp fenv' (strip exp);
+      restore ra_tmp a0_tmp callee;
       emit (M.Move (M.reg "$v0", M.reg "$t0"));
-      emit (M.Move (M.reg "$ra", ra_tmp));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
-      emit (M.Jr (M.reg "$ra", M.reg "$v0" :: calleeSaved))
+      emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
       finish_fun ()
       end
 
