@@ -150,25 +150,101 @@ structure Codegen :> CODEGEN =
 	           r
 	         end
        | NONE => E.impossible ("Can't find " ^ Symbol.name id))
-
-           (* IMPLEMENT ME! *)
     | gen (A.Int i) = 
+        let val result = M.newReg () in
+        emit (M.Li (result, M.immed i));
+        result
+        end
     | gen (A.Op (oper, exps)) = 
-        (case oper of
-          A.Add =>
-        | A.Sub =>)
-    | gen (A.Tuple tp) =
-        (case tp of
-          A.Inttp =>
-        | A.Tupletp tps =>
-        | A.Arrowtp (tp, tp') =>
-        | A.Reftp tp => )
-    | gen (A.Proj p) =
-    | gen (A.If f) =
-    | gen (A.Call c) =
-    | gen (A.Let l) =
-    | gen (A.Constrain r) =
-    | gen (A.Pos p)
+        (case (oper, map (fn x => gen_exp env x) exps) of
+          (A.Add, [M.reg r1, M.reg r2]) => 
+            let val result = M.newReg () in
+            emit (M.Arith3 (fun2mips_arith_op A.Add, result, r1, r2));
+            result
+            end
+        | (A.Sub, [M.reg r1, M.reg r2]) =>
+            let val result = M.newReg () in
+            emit (M.Arith3 (fun2mips_arith_op A.Sub, result, r1, r2));
+            result
+            end 
+        | (A.Mul, [M.reg r1, M.reg r2]) => 
+            let val result = M.newReg () in
+            emit (M.Arith3 (fun2mips_arith_op A.Mul, result, r1, r2));
+            result
+            end
+        | (A.LT, [M.reg r1, M.reg r2]) => 
+            let val result = M.newReg () in
+            emit (M.Arith3 (fun2mips_arith_op A.LT, result, r1, r2));
+            result
+            end
+        | (A.Eq, [M.reg r1, M.reg r2]) => 
+            let val result = M.newReg () in
+            emit (M.Arith3 (fun2mips_arith_op A.Eq, result, r1, r2));
+            result
+            end
+        | (A.Ref, [M.reg r1]) => 
+            let val result = M.newReg () in
+            emit_alloc_call (M.wordSize, result);
+            emit (M.Sw (r1, (M.immed 0, result)));
+            result
+            end 
+        | (A.Get, [M.reg r1]) => 
+            let val result = M.newReg () in
+            emit (M.Lw (result, (M.immed 0, r1)));
+            result
+            end
+        | (A.Set, [M.reg r1, M.reg r2]) => 
+            (emit (M.Sw (r2, (M.immed 0, r1)));
+            r1))
+    | gen (A.Tuple exps) = 
+        let val result = M.newReg () in
+          emit (result, M.reg "$gp");
+          (case exps of
+            [] => result
+          | (e :: rest) =>
+              let val addr = M.newReg () 
+                  val r = gen_exp env e in
+              emit_alloc_call (M.wordSize, addr);
+              emit (M.Sw (r, (M.immed 0, addr)));
+              gen_exp env rest
+              end)
+        end
+(*
+        (case exps of
+          [] => 
+            let val result = M.newReg () in
+              emit (M.Move (result, M.reg "$gp"));
+              result
+            end
+        | (e :: rest) =>
+            let val result = M.newReg () 
+                val r = gen_exp env e in
+            emit_alloc_call (M.wordSize, result);
+            emit (M.Sw (r, (M.immed 0, result)));
+            gen_exp env rest
+            end)
+*)
+    | gen (A.Proj (i, e)) = 
+        let val addr = gen_exp env e 
+            val result = M.newReg () 
+            val wo = M.newReg () in
+        emit (M.Li (M.reg "$t0", M.immed i));
+        emit (M.Li (M.reg "$t1", M.wordSizeImmed));
+        emit (M.Arith3 (M.Mulo, wo, "$t0", "$t1"));
+        emit (M.Arith3 (M.Add, "$t0", addr, wo));
+        emit (M.Lw (result, (M.immed 0, "$t0")));
+        result
+        end
+    | gen (A.If (e1, e2, e3)) = 
+        let val result = M.newReg () in
+     
+        end
+    | gen (A.Call (f, args)) = 
+
+    | gen (A.Let (id, e1, e2)) = 
+        
+    | gen (A.Constrain (e, tp)) = E.impossible "unimplemented translation"
+    | gen (A.Pos (pos, e)) = E.impossible "unimplemented translation"
     | gen _ = E.impossible "unimplemented translation"
     in gen
     end
@@ -193,8 +269,7 @@ structure Codegen :> CODEGEN =
         | x :: xs => 
             (emit (M.Move (M.reg ("$s" ^ Int.toString (length xs)), x));
             f xs) in
-      (f callee;
-      emit (M.Move (M.reg "$ra", ra)))
+      f callee
       end
     (* gen_func: generates code for one function
      *    inputs: fenv: functions environment
@@ -211,8 +286,9 @@ structure Codegen :> CODEGEN =
       emit (M.Move (a0_tmp, M.reg "$a0"));
       save_callee ();
       gen_exp fenv' (strip exp);
-      restore ra_tmp a0_tmp callee;
+      restore callee;
       emit (M.Move (M.reg "$v0", M.reg "$t0"));
+      emit (M.Move (M.reg "$ra", ra));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
       emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
       finish_fun ()
