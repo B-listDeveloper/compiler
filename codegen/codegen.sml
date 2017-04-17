@@ -123,9 +123,9 @@ structure Codegen :> CODEGEN =
       | fun2mips_arith_op _      = E.impossible "Arith op expected"
 
     (* Remove Pos and Constrain, to simplify pattern matching. *)
-    fun strip(A.Pos(_,e))     = strip e
-      | strip(A.Constrain(e,_)) = strip e
-      | strip(A.Op(oper,el))  = A.Op(oper, map strip el)
+    (*fun strip(A.Pos(_,e))     = strip e
+      | strip(A.Constrain(e,_)) = strip e*)
+    fun strip(A.Op(oper,el))  = A.Op(oper, map strip el)
       | strip(A.Tuple(el))    = A.Tuple(map strip el)
       | strip(A.Proj(i,e))    = A.Proj(i,strip e)
       | strip(A.If(e1,e2,e3)) = A.If(strip e1, strip e2, strip e3)
@@ -201,6 +201,18 @@ structure Codegen :> CODEGEN =
            아니면 tuple이 저장된 시작 주소를 넣어 return 
            한 exp마다 alloc하는 것이 아니라 한번에 alloc하고
            저장만 하도록 고칠것 *)
+        (*let val result = M.newReg () in
+        emit_alloc_call (M.immed (M.wordSize * (length exps)), result);
+        (case exps of 
+          [] => 
+        | (e :: rest) => 
+            (case e of
+              A.Tuple e =>
+            | _ => ));
+        result
+        end
+*)
+
         let val result = M.newReg () in
           emit (M.Li (result, M.immed 0));
           (case exps of
@@ -217,14 +229,16 @@ structure Codegen :> CODEGEN =
               end)
         end
     | gen (A.Proj (i, e)) = 
-        let val addr = gen_exp env e 
-            val result = M.newReg () 
-            val wo = M.newReg () in
-        emit (M.Li (M.reg "$t0", M.immed i)); (* 대신 i * wordSize 하면? *)
-        emit (M.Li (M.reg "$t1", M.wordSizeImmed));
-        emit (M.Arith3 (M.Mulo, wo, M.reg "$t0", M.reg "$t1"));
-        emit (M.Arith3 (M.Add, M.reg "$t0", addr, wo));
-        emit (M.Lw (result, (M.immed 0, M.reg "$t0")));
+        (*val addr = gen_exp env e *)
+        let val result = M.newReg () 
+            val tmp1 = M.newReg ()
+            val tmp2 = M.newReg ()
+            (*val wo = M.newReg () *)in
+        emit (M.Li (tmp1, M.immed (i * M.wordSize))); (* 대신 i * wordSize 하면? *)
+        (*emit (M.Li (M.reg "$t1", M.wordSizeImmed));
+        emit (M.Arith3 (M.Mulo, wo, M.reg "$t0", M.reg "$t1"));*)
+        emit (M.Arith3 (M.Add, tmp2, gen_exp env e, tmp1));
+        emit (M.Lw (result, (M.immed 0, tmp2)));
         result
         end
     | gen (A.If (e1, e2, e3)) = 
@@ -248,13 +262,13 @@ structure Codegen :> CODEGEN =
             val env' = Symbol.enter (env, id, Reg (gen_exp env e1)) in
         gen_exp env' e2
         end
-    | gen (A.Constrain (e, tp)) = E.impossible "unimplemented translation"
-    | gen (A.Pos (pos, e)) = E.impossible "unimplemented translation"
+    | gen (A.Constrain (e, tp)) = gen_exp env e
+    | gen (A.Pos (pos, e)) = gen_exp env e
     | gen _ = E.impossible "unimplemented translation"
     in gen
     end
 
-    fun save_callee callee =
+    fun save_callee () =
       let val regs = M.calleeSaved 
           fun f l r = 
             case r of 
@@ -264,7 +278,7 @@ structure Codegen :> CODEGEN =
                 emit (M.Move (tmp, M.reg ("$s" ^ Int.toString (length l))));
                 f (l @ [tmp]) xs
                 end in
-          f callee regs 
+          f [] regs 
       end
 
     fun restore callee =
@@ -288,10 +302,10 @@ structure Codegen :> CODEGEN =
       emit_label (fun_label f);
       emit (M.Move (ra_tmp, M.reg "$ra"));
       emit (M.Move (a0_tmp, M.reg "$a0"));
-      save_callee callee;
+      callee = save_callee ();
       gen_exp fenv' (strip exp);
-      restore callee;
       emit (M.Move (M.reg "$v0", M.reg "$t0"));
+      restore callee;
       emit (M.Move (M.reg "$ra", ra_tmp));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
       emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
