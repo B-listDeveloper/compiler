@@ -39,7 +39,7 @@ fun freshname () : string =
 
 %right ARROW
 %nonassoc LETIN
-%nonassoc SEMICOLON
+%left SEMICOLON
 %nonassoc IF THEN LOOP
 %nonassoc ELSE
 %nonassoc COMMA
