@@ -229,14 +229,10 @@ structure Codegen :> CODEGEN =
               end)
         end
     | gen (A.Proj (i, e)) = 
-        (*val addr = gen_exp env e *)
         let val result = M.newReg () 
             val tmp1 = M.newReg ()
-            val tmp2 = M.newReg ()
-            (*val wo = M.newReg () *)in
-        emit (M.Li (tmp1, M.immed (i * M.wordSize))); (* 대신 i * wordSize 하면? *)
-        (*emit (M.Li (M.reg "$t1", M.wordSizeImmed));
-        emit (M.Arith3 (M.Mulo, wo, M.reg "$t0", M.reg "$t1"));*)
+            val tmp2 = M.newReg () in
+        emit (M.Li (tmp1, M.immed (i * M.wordSize)));
         emit (M.Arith3 (M.Add, tmp2, gen_exp env e, tmp1));
         emit (M.Lw (result, (M.immed 0, tmp2)));
         result
@@ -259,7 +255,7 @@ structure Codegen :> CODEGEN =
         M.reg "$v0")
     | gen (A.Let (id, e1, e2)) = 
         let val r1 = gen_exp env e1
-            val env' = Symbol.enter (env, id, Reg (gen_exp env e1)) in
+            val env' = Symbol.enter (env, id, Reg r1) in
         gen_exp env' e2
         end
     | gen (A.Constrain (e, tp)) = gen_exp env e
@@ -268,7 +264,7 @@ structure Codegen :> CODEGEN =
     in gen
     end
 
-    fun save_callee () =
+    fun save_callee lab =
       let val regs = M.calleeSaved 
           fun f l r = 
             case r of 
@@ -276,9 +272,10 @@ structure Codegen :> CODEGEN =
             | x :: xs =>
                 let val tmp = M.newReg () in
                 emit (M.Move (tmp, M.reg ("$s" ^ Int.toString (length l))));
-                f (l @ [tmp]) xs
+                f (tmp :: l) xs
                 end in
-          f [] regs 
+          (emit_label (fun_label lab);
+          f [] regs)
       end
 
     fun restore callee =
@@ -296,15 +293,12 @@ structure Codegen :> CODEGEN =
      *)
     fun gen_func (fenv, (f,x,t1,t2,exp)) = 
       let val fenv' = Symbol.enter (fenv, x, Reg (M.reg "$a0"))
-          val callee = []
+          val callee = save_callee f
           val a0_tmp = M.newReg () 
           val ra_tmp = M.newReg () in
-      emit_label (fun_label f);
       emit (M.Move (ra_tmp, M.reg "$ra"));
       emit (M.Move (a0_tmp, M.reg "$a0"));
-      callee = save_callee ();
-      gen_exp fenv' (strip exp);
-      emit (M.Move (M.reg "$v0", M.reg "$t0"));
+      emit (M.Move (M.reg "$v0", gen_exp fenv' (strip exp)));
       restore callee;
       emit (M.Move (M.reg "$ra", ra_tmp));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
