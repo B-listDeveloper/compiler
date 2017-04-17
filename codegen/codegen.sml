@@ -123,9 +123,9 @@ structure Codegen :> CODEGEN =
       | fun2mips_arith_op _      = E.impossible "Arith op expected"
 
     (* Remove Pos and Constrain, to simplify pattern matching. *)
-    (*fun strip(A.Pos(_,e))     = strip e
-      | strip(A.Constrain(e,_)) = strip e*)
-    fun strip(A.Op(oper,el))  = A.Op(oper, map strip el)
+    fun strip(A.Pos(_,e))     = strip e
+      | strip(A.Constrain(e,_)) = strip e
+      | strip(A.Op(oper,el))  = A.Op(oper, map strip el)
       | strip(A.Tuple(el))    = A.Tuple(map strip el)
       | strip(A.Proj(i,e))    = A.Proj(i,strip e)
       | strip(A.If(e1,e2,e3)) = A.If(strip e1, strip e2, strip e3)
@@ -226,13 +226,24 @@ structure Codegen :> CODEGEN =
         let val result = M.newReg () 
             val onFalse = M.freshlab () 
             val finishIf = M.freshlab () in
-          emit (M.Branchz (M.Ne, gen_exp env e1, onFalse));
-          emit (M.Move (result, gen_exp env e2));
-          emit (M.Jal (finishIf));
-          emit_label (onFalse);
-          emit (M.Move (result, gen_exp env e3));
-          emit_label (finishIf);
-          result
+        emit (M.Branchz (M.Eq, gen_exp env e1, onFalse));
+        emit (M.Move (result, gen_exp env e2));
+        emit (M.Jal (finishIf));
+        emit_label (onFalse);
+        emit (M.Move (result, gen_exp env e3));
+        emit_label (finishIf);
+        result
+        end
+    | gen (A.While (e1, e2)) =
+        let val result = M.newReg ()
+            val body = M.freshlab ()
+            val test = M.freshlab () in
+        emit (M.Jal (test));
+        emit_label (body);
+        emit (M.Move (result, gen_exp env e2));
+        emit_label (test);
+        emit (M.Branchz (M.Ne, gen_exp env e1, body));
+        result
         end
     | gen (A.Call (f, args)) = 
         (emit (M.Move (M.reg "$a0", gen_exp env args)); (* only one arg *)
