@@ -197,36 +197,21 @@ structure Codegen :> CODEGEN =
             r1)
         | (_, _) => E.impossible "ee")
     | gen (A.Tuple exps) = 
-        (* 만약 empty tuple이면 result에 0을 넣어 return, 
-           아니면 tuple이 저장된 시작 주소를 넣어 return 
-           한 exp마다 alloc하는 것이 아니라 한번에 alloc하고
-           저장만 하도록 고칠것 *)
-        (*let val result = M.newReg () in
-        emit_alloc_call (M.immed (M.wordSize * (length exps)), result);
-        (case exps of 
-          [] => 
-        | (e :: rest) => 
-            (case e of
-              A.Tuple e =>
-            | _ => ));
-        result
-        end
-*)
-
         let val result = M.newReg () in
-          emit (M.Li (result, M.immed 0));
-          (case exps of
-            [] => result
-          | [e] =>
-              (emit_alloc_call (M.wordSizeImmed, result);
-              emit (M.Sw (gen_exp env e, (M.immed 0, result)));
-              result)
-          | (e :: rest) =>
-              let val r = gen_exp env e in
-              emit_alloc_call (M.wordSizeImmed, result);
-              emit (M.Sw (r, (M.immed 0, result)));
-              gen_exp env (A.Tuple rest)
-              end)
+        case exps of 
+          [] => (emit (M.Li (result, M.immed 0)); result)
+        | _ => 
+            let fun f l addr i =
+              (case l of
+                [] => E.impossible "NOT REACHABLE"
+              | [e] => (emit (M.Sw (gen_exp env e, (M.immed (M.wordSize * i), addr))); result)
+              | (e :: rest) =>
+                  (emit (M.Sw (gen_exp env e, (M.immed (M.wordSize * i), addr)));
+                  f rest addr (i + 1))) in
+            emit_alloc_call (M.immed (M.wordSize * (length exps)), result);
+            f exps result 0;
+            result
+            end
         end
     | gen (A.Proj (i, e)) = 
         let val result = M.newReg () 
