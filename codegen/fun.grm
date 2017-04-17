@@ -7,6 +7,12 @@ fun check_id id pos : A.tp =
   if id = "int" then A.Inttp
   else (ErrorMsg.error (pos, "argument type is not int"); raise InvalidType)
 
+val nameCount = ref 0
+
+fun freshname () : string =
+  (nameCount := !nameCount + 1;
+  "__foo" ^ Int.toString (!nameCount))
+
 %%
 
 %pos ErrorMsg.pos
@@ -93,7 +99,7 @@ LPAREN exp RPAREN                       (A.Pos((exp1left, RPARENright), exp1))
 (* num *)
 | INT                                   (A.Pos((INTleft, INTright), A.Int(INT)))
 (* exp; exp *)
-| exp SEMICOLON exp                     (A.Pos((exp1left, exp2right), A.Let(S.symbol("foo"), exp1, exp2)))
+| exp SEMICOLON exp                     (A.Pos((exp1left, exp2right), A.Let(S.symbol(freshname ()), exp1, exp2)))
 (* un exp *)
 | MINUS exp %prec UMINUS                (A.Pos((MINUSleft, exp1right), A.Op(A.Sub, [A.Int(0), exp1])))
 | NOT exp                               (A.Pos((NOTleft, exp1right), A.If(A.Op(A.Eq, [exp1, A.Int(0)]), A.Int(1), A.Int(0))))

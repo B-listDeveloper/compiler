@@ -256,7 +256,6 @@ structure Codegen :> CODEGEN =
         end
     | gen (A.Constrain (e, tp)) = gen_exp env e
     | gen (A.Pos (pos, e)) = gen_exp env e
-    | gen _ = E.impossible "unimplemented translation"
     in gen
     end
 
