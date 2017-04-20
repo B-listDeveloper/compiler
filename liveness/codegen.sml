@@ -247,7 +247,7 @@ structure Codegen :> CODEGEN =
         end
     | gen (A.Call (f, args)) = 
         (emit (M.Move (M.reg "$a0", gen_exp env args)); (* only one arg *)
-        emit (M.Jal (M.thislab (M.reg2name (gen_exp env f))));
+        emit (M.Jr (gen_exp env f, M.callerSaved));
         M.reg "$v0")
     | gen (A.Let (id, e1, e2)) = 
         let val r1 = gen_exp env e1
