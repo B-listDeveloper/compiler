@@ -182,9 +182,12 @@ structure Codegen :> CODEGEN =
             result
             end
         | (A.Ref, [r1]) => 
-            let val result = M.newReg () in
+            let val result = M.newReg () 
+                val a0_tmp = M.newReg () in
+            emit (M.Move (a0_tmp, M.reg "$a0"));
             emit_alloc_call (M.wordSizeImmed, result);
             emit (M.Sw (r1, (M.immed 0, result)));
+            emit (M.Move (M.reg "$a0", a0_tmp));
             result
             end 
         | (A.Get, [r1]) => 
@@ -215,11 +218,9 @@ structure Codegen :> CODEGEN =
         end
     | gen (A.Proj (i, e)) = 
         let val result = M.newReg () 
-            val tmp1 = M.newReg ()
-            val tmp2 = M.newReg () in
-        emit (M.Li (tmp1, M.immed (i * M.wordSize)));
-        emit (M.Arith3 (M.Add, tmp2, gen_exp env e, tmp1));
-        emit (M.Lw (result, (M.immed 0, tmp2)));
+            val addr = M.newReg () in
+        emit (M.Arithi (M.Addi, addr, gen_exp env e, M.immed (i * M.wordSize)));
+        emit (M.Lw (result, (M.immed 0, addr)));
         result
         end
     | gen (A.If (e1, e2, e3)) = 
@@ -228,7 +229,7 @@ structure Codegen :> CODEGEN =
             val finishIf = M.freshlab () in
         emit (M.Branchz (M.Eq, gen_exp env e1, onFalse));
         emit (M.Move (result, gen_exp env e2));
-        emit (M.Jal (finishIf));
+        emit (M.J (finishIf));
         emit_label (onFalse);
         emit (M.Move (result, gen_exp env e3));
         emit_label (finishIf);
@@ -238,7 +239,7 @@ structure Codegen :> CODEGEN =
         let val result = M.newReg ()
             val body = M.freshlab ()
             val test = M.freshlab () in
-        emit (M.Jal (test));
+        emit (M.J (test));
         emit_label (body);
         emit (M.Move (result, gen_exp env e2));
         emit_label (test);
@@ -246,13 +247,21 @@ structure Codegen :> CODEGEN =
         result
         end
     | gen (A.Call (f, args)) = 
-        (emit (M.Move (M.reg "$a0", gen_exp env args)); (* only one arg *)
-        emit (M.Jr (gen_exp env f, M.callerSaved));
-        M.reg "$v0")
+        let val result = M.newReg () 
+            val a0_tmp = M.newReg () in    
+        emit (M.Move (a0_tmp, M.reg "$a0"));
+        emit (M.Move (M.reg "$a0", gen_exp env args)); (* only one arg *)
+        emit (M.Jalr (M.reg "$ra", gen_exp env f, M.callerSaved, M.calleeSaved));
+        emit (M.Move (M.reg "$a0", a0_tmp));
+        emit (M.Move (result, M.reg "$v0"));
+        result
+        end
     | gen (A.Let (id, e1, e2)) = 
         let val r1 = gen_exp env e1
-            val env' = Symbol.enter (env, id, Reg r1) in
-        gen_exp env' e2
+            val env' = Symbol.enter (env, id, Reg r1)
+            val result = M.newReg () in
+        emit (M.Move (result, gen_exp env' e2));
+        result
         end
     | gen (A.Constrain (e, tp)) = gen_exp env e
     | gen (A.Pos (pos, e)) = gen_exp env e
@@ -291,11 +300,12 @@ structure Codegen :> CODEGEN =
           val callee = save_callee f
           val a0_tmp = M.newReg () 
           val ra_tmp = M.newReg () in
-      emit (M.Move (ra_tmp, M.reg "$ra"));
       emit (M.Move (a0_tmp, M.reg "$a0"));
+      emit (M.Move (ra_tmp, M.reg "$ra"));
       emit (M.Move (M.reg "$v0", gen_exp fenv' (strip exp)));
       restore callee;
       emit (M.Move (M.reg "$ra", ra_tmp));
+      emit (M.Move (M.reg "$a0", a0_tmp));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
       emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
       finish_fun ()
