@@ -17,7 +17,7 @@ struct
 	val _ = Mips.printAssem(out', (strBL, funCodeL)) 
                 before TextIO.closeOut out'
          	handle e => (TextIO.closeOut out'; raise e)
-
+  val _ = List.map Liveness.interference_graph (funCodeL)
     in ()
 
     end

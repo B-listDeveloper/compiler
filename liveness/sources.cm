@@ -14,6 +14,8 @@ pp.sig pp.sml
 funpp.sig funpp.sml
 mips.sig mips.sml 
 codegen.sml
+graph.sig graph.sml
+liveness.sml
 
 fun.lex
 fun.grm

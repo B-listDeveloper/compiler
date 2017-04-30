@@ -272,7 +272,8 @@ struct
    | Branchz(_,r,_) => {def=RegSet.empty, use=list2set[r]}
    | Branchu(_,r1,r2,_) => {def=RegSet.empty, use=list2set[r1,r2]}
    | Branch(_,r1,r2,_) => {def=RegSet.empty, use=list2set[r1,r2]}
-   | Jal(_) => {def=list2set[reg "$ra"], use=RegSet.empty}
+   | J(_) => {def=RegSet.empty, use=RegSet.empty}
+   | Jal(_) => {def=list2set(reg "$ra" :: reg "$v0" :: callerSaved), use=list2set[reg "$a0"]}
    | Jr(r,also) => {def=RegSet.empty, use=list2set(r::also)}
    | Jalr(r1,r2,use,def) => {def=list2set(r1 :: def), use=list2set(r2::use)}
    | Syscall => ErrorMsg.impossible "Syscall"
