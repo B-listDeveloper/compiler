@@ -17,23 +17,23 @@ structure Liveness : LIVENESS = struct
  val live_at = create_live_at ()
 
  fun init_live_at blocks =
-    (*let fun f l acc =
+    let fun f l acc =
           case l of
             [] => (live_at := acc; ())
           | (label, instrs) :: rest =>
-              f rest (acc @ [("_" ^ M.lab2string label, RS.empty)]) in
+              f rest (acc @ [(M.lab2string label, RS.empty)]) in
     f blocks []
-    end *)
-    case blocks of
+    end
+    (*case blocks of
       [] => ()
     | (label, instrs) :: rest =>
         (live_at := !live_at @ [(M.lab2string label, RS.empty)];
-        init_live_at rest) 
+        init_live_at rest)*)
 
  fun live_at_lab lab =
     let fun f l = 
           (case l of
-            [] => ErrorMsg.impossible "No such label found"
+            [] => ErrorMsg.impossible ("No such label found: " ^ lab)
           | (x, live) :: rest => 
               if x = lab then live
               else f rest) in
@@ -56,16 +56,20 @@ structure Liveness : LIVENESS = struct
         let val live_out = compute_live_in (rest, live_at_end)
             val {use, def} = M.instr_def_use instr in
         case instr of
-        (*  Branchz (_, _, lab) :: rest =>
-            RS.union (use, RS.difference (RS.union (live_at lab, live_out), def))
-        | Branchu (_, _, _, lab) :: rest =>
-        | Branch (_, _, _, lab) :: rest =>
-        | J (lab) :: rest => 
-        |*) M.Jal (lab) =>
+          M.Branchz (_, _, lab) =>
+            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.Branchu (_, _, _, lab) =>
+            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.Branch (_, _, _, lab) =>
+            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.J (lab) => 
             RS.union (use, RS.difference (live_at_lab (M.lab2string lab), def))
+        | M.Jal (lab) =>
+            RS.union (use, RS.difference (live_out, def))
         | M.Jr (r, also) => 
-            RS.empty
-        (*| Jalr (ra, r, use, def) :: rest =>*)
+            use
+        | M.Jalr (ra, r, _, _) =>
+            RS.union (use, RS.difference (live_out, def))
         | _ => RS.union (use, RS.difference (live_out, def))
         end
 
@@ -104,7 +108,6 @@ structure Liveness : LIVENESS = struct
           | (label, instrs) :: rest =>
               if lab = (M.lab2string label) then instrs
               else f rest) in
-    print ("tries to find instruction on " ^ lab ^ "\n");
     f blocks
     end
 
@@ -127,7 +130,7 @@ structure Liveness : LIVENESS = struct
     else ()
     end
 
- fun printlist l = 
+ fun printlist mention l = 
     case l of
       [] => ()
     | (lab, live) :: rest =>
@@ -137,16 +140,18 @@ structure Liveness : LIVENESS = struct
                 [] => (print "\n"; ())
               | h :: left =>
                   (print ((M.reg2name h) ^ " ");
+                  mention h;
                   f left)) in
         print ("live_at (" ^ lab ^ "): ");
         f li;
-        printlist rest
+        printlist mention rest
         end
+ 
  fun analyze {mention: M.reg -> unit, interfere: M.reg -> M.reg -> unit}
              (blocks: M.codeblock list) =
     (init_live_at blocks;
     outer_loop blocks;
-    printlist (!live_at);
+    printlist mention (!live_at);
     ())
     
 
