@@ -24,12 +24,8 @@ structure Liveness : LIVENESS = struct
               f rest (acc @ [(M.lab2string label, RS.empty)]) in
     f blocks []
     end
-    (*case blocks of
-      [] => ()
-    | (label, instrs) :: rest =>
-        (live_at := !live_at @ [(M.lab2string label, RS.empty)];
-        init_live_at rest)*)
 
+ (* live_at [L] *)
  fun live_at_lab lab =
     let fun f l = 
           (case l of
@@ -40,48 +36,52 @@ structure Liveness : LIVENESS = struct
     f (!live_at)
     end
 
- fun compute_live_in (instrs, live_at_end) = 
+ fun add_interference def out interfere =
+    let val def_list = RS.listItems def
+        val out_list = RS.listItems out
+        fun f l1 l2 =
+          (case l1 of
+            [] => ()
+          | h :: r =>
+              (List.map (fn x => interfere h x) l2;
+              f r l2)) in
+    f def_list out_list
+    end
+
+ fun add_mention use def mention =
+    let val def_list = RS.listItems def
+        val use_list = RS.listItems use in
+    List.map mention def_list;
+    List.map mention use_list
+    end
+
+ fun compute_live_in (instrs, live_at_end) interfere mention = 
     case instrs of
       [] => live_at_end
     | M.Li(r, i) :: M.Syscall :: rest =>
-        let val live_out = compute_live_in (rest, live_at_end) in
+        let val live_out = compute_live_in (rest, live_at_end) interfere mention in
         if r = Mips.reg "$v0" then 
         (case M.syscall_def_use (M.immed2int i) of
           SOME {use,def} =>
-            RS.union (use, RS.difference (live_out, def))
+            (add_mention use def mention;
+            add_interference (RS.singleton r) live_out interfere;
+            add_interference def live_out interfere;
+            RS.union (use, RS.difference (live_out, def)))
         | NONE => ErrorMsg.impossible "Unknown Syscall")
         else ErrorMsg.impossible "Syscall not preceded by li $v0" 
         end
     | instr :: rest => 
-        let val live_out = compute_live_in (rest, live_at_end)
+        let val live_out = compute_live_in (rest, live_at_end) interfere mention
             val {use, def} = M.instr_def_use instr in
+        add_mention use def mention;
+        add_interference def live_out interfere;
         case instr of
-          M.Branchz (_, _, lab) =>
-            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
-        | M.Branchu (_, _, _, lab) =>
-            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
-        | M.Branch (_, _, _, lab) =>
-            RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
-        | M.J (lab) => 
-            RS.union (use, RS.difference (live_at_lab (M.lab2string lab), def))
-        | M.Jal (lab) =>
-            RS.union (use, RS.difference (live_out, def))
-        | M.Jr (r, also) => 
-            use
-        | M.Jalr (ra, r, _, _) =>
-            RS.union (use, RS.difference (live_out, def))
+          M.Branchz (_, _, lab) => RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.Branchu (_, _, _, lab) => RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.Branch (_, _, _, lab) => RS.union (use, RS.difference (RS.union (live_at_lab (M.lab2string lab), live_out), def))
+        | M.J (lab) => RS.union (use, RS.difference (live_at_lab (M.lab2string lab), def))
         | _ => RS.union (use, RS.difference (live_out, def))
         end
-
- fun nextlab lab =
-    let fun f l =
-          (case l of 
-            [] => ErrorMsg.impossible "dddddd"
-          | (label, instrs) :: rest =>
-              if lab = label then label
-              else f rest) in
-    f (!live_at)
-    end
 
  (* if new <> old then true else false *)
  fun comparelive new old changed =
@@ -104,7 +104,7 @@ structure Liveness : LIVENESS = struct
  fun get_instrs lab blocks = 
     let fun f l =
           (case l of
-            [] => ErrorMsg.impossible ("Instructions not found: " ^ lab)
+            [] => ErrorMsg.impossible ("No instruction set with such label: " ^ lab)
           | (label, instrs) :: rest =>
               if lab = (M.lab2string label) then instrs
               else f rest) in
@@ -113,24 +113,8 @@ structure Liveness : LIVENESS = struct
 
  fun get_live (lab, live) = live
 
- fun outer_loop blocks =
-    let val changed = ref false 
-        fun inner_loop l changed =
-          (case l of
-            [] => ()
-          | (lab, live) :: rest =>
-              let val new = (compute_live_in (get_instrs lab blocks, get_live (List.hd rest))
-                            handle Empty => compute_live_in (get_instrs lab blocks, RS.empty)) in
-              comparelive new live changed;
-              updatelive lab new;
-              inner_loop rest changed
-              end) in
-    inner_loop (!live_at) changed;
-    if !changed then outer_loop blocks
-    else ()
-    end
-
- fun printlist mention l = 
+ (* live_at dump function used in implementation step *)
+ fun printlive l = 
     case l of
       [] => ()
     | (lab, live) :: rest =>
@@ -140,20 +124,34 @@ structure Liveness : LIVENESS = struct
                 [] => (print "\n"; ())
               | h :: left =>
                   (print ((M.reg2name h) ^ " ");
-                  mention h;
                   f left)) in
         print ("live_at (" ^ lab ^ "): ");
         f li;
-        printlist mention rest
+        printlive rest
         end
- 
+
+ fun outer_loop blocks interfere mention =
+    let val changed = ref false 
+        fun inner_loop l changed =
+          (case l of
+            [] => ()
+          | (lab, live) :: rest =>
+              let val new = (compute_live_in (get_instrs lab blocks, get_live (List.hd rest)) interfere mention
+                            handle Empty => compute_live_in (get_instrs lab blocks, RS.empty) interfere mention) in
+              comparelive new live changed;
+              updatelive lab new;
+              inner_loop rest changed
+              end) in
+    inner_loop (!live_at) changed;
+    if !changed then outer_loop blocks interfere mention
+    else ()
+    end
+
  fun analyze {mention: M.reg -> unit, interfere: M.reg -> M.reg -> unit}
              (blocks: M.codeblock list) =
     (init_live_at blocks;
-    outer_loop blocks;
-    printlist mention (!live_at);
+    outer_loop blocks interfere mention;
     ())
-    
 
  fun printadj say g i = 
      (say (M.reg2name i); say ":";

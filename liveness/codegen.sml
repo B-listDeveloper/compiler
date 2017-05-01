@@ -287,10 +287,13 @@ structure Codegen :> CODEGEN =
         case l of
           [] => ()
         | x :: xs => 
+            (*(f xs;
+            emit (M.Move (M.reg ("$s" ^ Int.toString (length xs)), x))) in*)
             (emit (M.Move (M.reg ("$s" ^ Int.toString (length xs)), x));
             f xs) in
       f callee
       end
+
     (* gen_func: generates code for one function
      *    inputs: fenv: functions environment
      *            func: the function to be generated
@@ -305,7 +308,6 @@ structure Codegen :> CODEGEN =
       emit (M.Move (M.reg "$v0", gen_exp fenv' (strip exp)));
       restore callee;
       emit (M.Move (M.reg "$ra", ra_tmp));
-      emit (M.Move (M.reg "$a0", a0_tmp));
       emit_label (Symbol.symbol(Symbol.name (fun_label f) ^ ".epilog"));
       emit (M.Jr (M.reg "$ra", M.reg "$v0" :: M.calleeSaved));
       finish_fun ()
