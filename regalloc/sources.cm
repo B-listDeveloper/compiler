@@ -16,6 +16,8 @@ mips.sig mips.sml
 codegen.sml
 graph.sig graph.sml
 liveness.sml
+color.sig color.sml
+regalloc.sml
 
 fun.lex
 fun.grm

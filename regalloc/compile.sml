@@ -6,7 +6,7 @@ struct
   fun compile filename = 
     let
 	val _ = Mips.reset()
-	val absyn = Parse.parse filename
+	val absyn = Parse.parse (filename, TextIO.openIn filename)
         val () = still_ok()
         val () = TypeCheck.tc absyn
         val () = still_ok()
