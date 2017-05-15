@@ -24,6 +24,7 @@ struct
        in
    Liveness.analyze {mention = mention_verify, interfere = interfere_verify} func
    end*)
+ 
  fun printnodes l =
    case l of 
      [] => (print "\n"; ())
@@ -63,7 +64,7 @@ struct
  fun connected_nodes ig nodes conn = 
    case nodes of 
      [] => RS.listItems conn
-   | h :: r => connected_nodes ig r (RS.union (RS.difference (IG.adj ig h, RS.singleton h), conn))
+   | h :: r => connected_nodes ig r (RS.union (IG.adj ig h, conn))
 
  fun low_and_high ig deg palette = 
    let val nodes = connected_nodes ig (RS.listItems (IG.nodes ig)) RS.empty
@@ -84,11 +85,15 @@ struct
          case l of
            [] => p
          | h :: r =>
-             let val removed = valOf (M.RegTb.look (allocated, h)) handle _ => h in
-             IG.mk_edge ig {from = node, to = h}; IG.mk_edge ig {from = h, to = node};
-             restore r (RS.delete (p, removed))
-             end
+             if RS.member (adjs, h) then
+               let val removed = valOf (M.RegTb.look (allocated, h)) handle _ => h in
+               IG.mk_edge ig {from = node, to = h}; IG.mk_edge ig {from = h, to = node};
+               restore r (RS.delete (p, removed))
+               end
+             else restore r p
        val palette' = restore cur_nodes palette in
+   (*print ("color for " ^ (M.reg2name node) ^ "\n");
+   printnodes (RS.listItems palette); *)
    if RS.numItems palette' = 0 then ErrorMsg.impossible "Assumption violated - simplified node is not colorable"
    else M.RegTb.enter (allocated, node, List.hd (RS.listItems palette'))
    end
