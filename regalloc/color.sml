@@ -41,7 +41,7 @@ struct
 
  fun remove_node ig from edges =
    case edges of
-     [] => ()
+     [] => (print "finished: "; printnodes (RS.listItems (IG.adj ig from)); ())
    | to :: r => 
        (IG.rm_edge ig {from = from, to = to};
        IG.rm_edge ig {from = to, to = from};
@@ -63,7 +63,7 @@ struct
 
  fun connected_nodes ig nodes conn = 
    case nodes of 
-     [] => RS.listItems conn
+     [] => (print "current connected nodes: "; printnodes (RS.listItems conn); RS.listItems conn)
    | h :: r => connected_nodes ig r (RS.union (IG.adj ig h, conn))
 
  fun low_and_high ig deg palette = 
@@ -79,11 +79,30 @@ struct
    f ([], []) nodes
    end
 
- fun paint ig (node, adjs) palette allocated = 
+ fun paint ig (node, adjs) palette allocated spilled = 
    let val cur_nodes = connected_nodes ig (RS.listItems (IG.nodes ig)) RS.empty
        fun restore l p = 
+         case l of 
+           [] => (IG.mk_edge ig {from = node, to = node}; p)
+         | h :: r => 
+             if RS.member (spilled, h) then restore r p
+             else
+               let val removed = valOf (M.RegTb.look (allocated, h)) handle _ => h in
+               IG.mk_edge ig {from = h, to = node}; IG.mk_edge ig {from = node, to = h}; 
+               restore r (RS.delete (p, removed))
+               end
+       val palette' = restore (RS.listItems (RS.difference (adjs, RS.singleton node))) palette in 
+   print ("hello my name is " ^ (M.reg2name node) ^ "\n");
+   print "original adjacents: ";
+   printnodes (RS.listItems adjs);
+   print "after adjacents: ";
+   printnodes (RS.listItems (IG.adj ig node));
+   if RS.numItems palette' = 0 then ErrorMsg.impossible "Assumption violated - simplified node is not colorable"
+   else (print ("i'll choose: " ^ (M.reg2name (List.hd (RS.listItems palette'))) ^ "\n"); M.RegTb.enter (allocated, node, List.hd (RS.listItems palette')))
+   end
+       (*fun restore l p = 
          case l of
-           [] => p
+           [] => (IG.mk_edge ig {from = node, to = node}; p)
          | h :: r =>
              if RS.member (adjs, h) then
                let val removed = valOf (M.RegTb.look (allocated, h)) handle _ => h in
@@ -92,11 +111,14 @@ struct
                end
              else restore r p
        val palette' = restore cur_nodes palette in
-   (*print ("color for " ^ (M.reg2name node) ^ "\n");
-   printnodes (RS.listItems palette); *)
+   print ("hello my name is " ^ (M.reg2name node) ^ "\n");
+   print "original adjacents: ";
+   printnodes (RS.listItems adjs);
+   print "current adjacents: ";
+   printnodes (RS.listItems (IG.adj ig node));
    if RS.numItems palette' = 0 then ErrorMsg.impossible "Assumption violated - simplified node is not colorable"
-   else M.RegTb.enter (allocated, node, List.hd (RS.listItems palette'))
-   end
+   else (print ("i'll choose: " ^ (M.reg2name (List.hd (RS.listItems palette'))) ^ "\n"); M.RegTb.enter (allocated, node, List.hd (RS.listItems palette')))
+   end*)
 
  fun color ({interference = ig: IG.graph,
              moves: IG.graph,
@@ -108,14 +130,14 @@ struct
          (*print "lowdegs: ";
          printdegs lowdegs;
          print "highdegs: ";
-         printdegs highdegs;*)
+         printdegs highdegs; *)
          if List.length lowdegs = 0 then (* lowdegs is empty *)
            (if List.length highdegs = 0 then (alloc, spills) (* highdegs is also empty - return and coloring starts *)
            else step g d (alloc, spill highdegs g spills)) (* highdegs is not empty - apply Spill heuristic *)
          else (* lowdegs is not empty - apply Simplify heuristic *)
            let val (node, adjs) = simplify lowdegs g 
                val (alloc', spills') = step g d (alloc, spills) in 
-           (paint g (node, adjs) palette alloc', spills')
+           (paint g (node, adjs) palette alloc' spills', spills')
            end 
          end 
        val (alloc, spills) = step ig deg (M.RegTb.empty, RS.empty) in
