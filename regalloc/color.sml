@@ -78,17 +78,19 @@ struct
              else f (ld, hd) r in (* precolored register *)
    f ([], []) nodes
    end
-
+ 
  fun paint ig (node, adjs) palette allocated spilled = 
    let val cur_nodes = connected_nodes ig (RS.listItems (IG.nodes ig)) RS.empty
+       val strict = RS.difference (M.list2set M.registers, palette)
        fun restore l p = 
          case l of 
            [] => (IG.mk_edge ig {from = node, to = node}; p)
          | h :: r => 
-             if RS.member (spilled, h) then restore r p
+             if RS.member (strict, h) orelse RS.member (spilled, h) then restore r p
              else
                let val removed = valOf (M.RegTb.look (allocated, h)) handle _ => h in
-               IG.mk_edge ig {from = h, to = node}; IG.mk_edge ig {from = node, to = h}; 
+               print ("hey my name is " ^ (M.reg2name h) ^ "\n");
+               IG.mk_edge ig {from = node, to = h}; IG.mk_edge ig {from = h, to = node}; 
                restore r (RS.delete (p, removed))
                end
        val palette' = restore (RS.listItems (RS.difference (adjs, RS.singleton node))) palette in 
