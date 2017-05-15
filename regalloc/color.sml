@@ -21,7 +21,7 @@ struct
            let val color1 = valOf (M.RegTb.look (alloc, r1)) handle NotFound => r1
                val color2 = valOf (M.RegTb.look (alloc, r2)) handle NotFound => r2 in 
            if M.comparereg (r1, r2) <> EQUAL then ()
-           else complain "Verification failed" (* constraint 1 *)
+           else complain "Verification failed" (* constraint 4 *)
            end
        fun mention_verify r = 
          if M.isvirtual r then (* nonprecolored *)
@@ -40,7 +40,7 @@ struct
            | NONE => 
                (if RS.member (spills, r) then complain "Verification failed" (* constraint 3 *)
                else ())) in 
-   Liveness.analyze {mention = mention_verify, interfere = interfere_verify} func (*constraint *)
+   Liveness.analyze {mention = mention_verify, interfere = interfere_verify} func
    end
  
  fun remove_node ig from edges =
