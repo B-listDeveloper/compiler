@@ -58,13 +58,18 @@ struct
        (remove_node ig node (RS.listItems adjs);
        (node, adjs))
  
- (* note that all spill costs are 1, so least cost selection step is skipped *)
- fun spill l ig spills=
-   case l of 
-     [] => ErrorMsg.impossible "Not reachable"
-   | (node, adjs) :: r =>
-       (remove_node ig node (RS.listItems adjs);
-       RS.add (spills, node))
+ fun spill l ig spills spillCost =
+   let val start = (List.hd l) handle Empty => ErrorMsg.impossible "Not reachable"
+       fun scan l (least, a) =
+         case l of 
+           [] => (least, a)
+         | (h, ads) :: r => 
+             (if spillCost least > spillCost h then scan r (h, ads)
+             else scan r (least, a)) 
+       val (victim, adjs) = scan (List.tl l) start in
+   remove_node ig victim (RS.listItems adjs);
+   RS.add (spills, victim)
+   end
 
  fun connected_nodes ig nodes conn = 
    case nodes of 
@@ -111,7 +116,7 @@ struct
          let val (lowdegs, highdegs) = low_and_high g d palette in
          if List.length lowdegs = 0 then (* lowdegs is empty *)
            (if List.length highdegs = 0 then (alloc, spills) (* highdegs is also empty - return and coloring starts *)
-           else step g d (alloc, spill highdegs g spills)) (* highdegs is not empty - apply Spill heuristic *)
+           else step g d (alloc, spill highdegs g spills spillCost)) (* highdegs is not empty - apply Spill heuristic *)
          else (* lowdegs is not empty - apply Simplify heuristic *)
            let val (node, adjs) = simplify lowdegs g 
                val (alloc', spills') = step g d (alloc, spills) in 
