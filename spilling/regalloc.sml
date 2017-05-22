@@ -72,7 +72,41 @@ struct
                                     M.Arith2 (aop2, rd, M.reg "$t8")] in
                      step rest (checked @ new) end
                    else step rest (checked @ [instr])
-               | M.Arith3 (aop3, rd, rs, rt) => step rest (checked @ [instr])
+               | M.Arith3 (aop3, rd, rs, rt) => 
+                   if RS.member (spill, rd) andalso RS.member (spill, rs) andalso RS.member (spill, rt) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rs, M.reg "$sp")),
+                                    M.Lw (M.reg "$t9", (find_offset spill_offset rt, M.reg "$sp")),
+                                    M.Arith3 (aop3, M.reg "$t8", M.reg "$t8", M.reg "$t9"),
+                                    M.Sw (M.reg "$t8", (find_offset spill_offset rd, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rd) andalso RS.member (spill, rs) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rs, M.reg "$sp")),
+                                    M.Arith3 (aop3, M.reg "$t9", M.reg "$t8", rt),
+                                    M.Sw (M.reg "$t9", (find_offset spill_offset rd, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rs) andalso RS.member (spill, rt) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rs, M.reg "$sp")),
+                                    M.Lw (M.reg "$t9", (find_offset spill_offset rt, M.reg "$sp")),
+                                    M.Arith3 (aop3, rd, M.reg "$t8", M.reg "$t9")] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rd) andalso RS.member (spill, rt) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rt, M.reg "$sp")),
+                                    M.Arith3 (aop3, M.reg "$t9", rs, M.reg "$t8"),
+                                    M.Sw (M.reg "$t9", (find_offset spill_offset rd, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rd) then
+                     let val new = [M.Arith3 (aop3, M.reg "$t8", rs, rt),
+                                    M.Sw (M.reg "$t8", (find_offset spill_offset rd, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rs) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rs, M.reg "$sp")),
+                                    M.Arith3 (aop3, rd, M.reg "$t8", rt)] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, rt) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rt, M.reg "$sp")),
+                                    M.Arith3 (aop3, rd, rs, M.reg "$t8")] in
+                     step rest (checked @ new) end
+                   else step rest (checked @ [instr])
                | M.Arithi (aopi, rt, rs, immed) => 
                    if RS.member (spill, rt) andalso RS.member (spill, rs) then
                      let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset rs, M.reg "$sp")),
@@ -100,8 +134,38 @@ struct
                                     M.Sw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp"))] in
                      step rest (checked @ new) end
                    else step rest (checked @ [instr])
-               | M.Lw (r, (immed, ra)) => step rest (checked @ [instr])
-               | M.Sw (r, (immed, ra)) => step rest (checked @ [instr])
+               | M.Lw (r, (immed, ra)) => 
+                   if RS.member (spill, r) andalso RS.member (spill, ra) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp")),
+                                    M.Lw (M.reg "$t9", (find_offset spill_offset ra, M.reg "$sp")),
+                                    M.Lw (M.reg "$t8", (immed, M.reg "$t9")),
+                                    M.Sw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, r) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp")),
+                                    M.Lw (M.reg "$t8", (immed, ra)),
+                                    M.Sw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, ra) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset ra, M.reg "$sp")),
+                                    M.Lw (r, (immed, M.reg "$t8"))] in
+                     step rest (checked @ new) end
+                   else step rest (checked @ [instr])
+               | M.Sw (r, (immed, ra)) => 
+                   if RS.member (spill, r) andalso RS.member (spill, ra) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp")),
+                                    M.Lw (M.reg "$t9", (find_offset spill_offset ra, M.reg "$sp")),
+                                    M.Sw (M.reg "$t8", (immed, M.reg "$t9"))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, r) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp")),
+                                    M.Sw (M.reg "$t8", (immed, ra))] in
+                     step rest (checked @ new) end
+                   else if RS.member (spill, ra) then
+                     let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset ra, M.reg "$sp")),
+                                    M.Sw (r, (immed, M.reg "$t8"))] in
+                     step rest (checked @ new) end
+                   else step rest (checked @ [instr])
                | M.Branchz (comp1, r, lab) => 
                    if RS.member (spill, r) then
                      let val new = [M.Lw (M.reg "$t8", (find_offset spill_offset r, M.reg "$sp")),
